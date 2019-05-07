@@ -1,0 +1,26 @@
+#!/bin/ash
+#Задаём раздел
+to_dev=$(yad --list \
+--height=200 --width=400 \
+--column=Раздел \
+--column=Размер \
+--column=ФС $(fdisk -l|grep ^/|grep -v swap|tr -d '*'| cut -b5- | awk '{print $1" "$5" "$7}')  | cut -f1 -d'|') 
+echo $?
+[ "$to_dev" ] || exit 1
+[ "`grep $to_dev /proc/mounts`" ] || mount /dev$to_dev /mnt$to_dev
+#Имя каталога
+while true; do
+	to_dir=$(yad --text="Введите имя каталога для установки" --entry --entry-text="`hostname`") || exit
+	[ -d /mnt/$to_part/$to_dir ] || wt -o "mkdir /mnt/$to_part/$to_dir" || exit 1
+	[ `ls /mnt$to_dev/$to_dir` ] && ntf -a "Каталог $to_dir не пустой" "измените имя" || break
+done
+#Создаём подкаталоги
+mkdir -p /mnt/$to_dev/$to_dir/base /mnt/$to_dev/$to_dir/modules /mnt/$to_dev/$to_dir/optional
+#Копируем подключенные модули
+#losetup -a | awk '{print $3}' | while read m
+losetup | awk '/^\/dev/  && $6 ~ /.pfs$/ {print $6}' | while read m
+  do echo "Копируется $(basename $m)"
+#	cp $m /mnt/$to_dev/$to_dir/$(basename $(dirname $m))/
+	[ "`basename "$m" |egrep '^[0-9]'`" ] && dd=base || dd=modules
+	    cp "$m" /mnt/$to_dev/$to_dir/$dd/
+  done 
