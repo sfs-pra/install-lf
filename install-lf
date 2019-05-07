@@ -1,16 +1,35 @@
 #!/bin/ash
+v=190507
 #Задаём раздел
-to_dev=$(yad --list \
---height=200 --width=400 \
---column=Раздел \
---column=Размер \
---column=ФС $(fdisk -l|grep ^/|grep -v swap|tr -d '*'| cut -b5- | awk '{print $1" "$5" "$7}')  | cut -f1 -d'|') 
-echo $?
-[ "$to_dev" ] || exit 1
+dev="$(fdisk -l|grep ^/|grep -v swap|tr -d '*'| cut -b5- | awk '{print $1" "$5" "$7}' | tr "\n" "!" |sed 's/!$//')"
+ms="Установка Linux FRUGAL"
+ms1="Дистрибутив должен быть загружен FRUGAL с тем комплектом модулей, \
+который Вы хотите установить"
+wwws="http://wiki.puppyrus.org/puppyrus/grub"
+
+while true; do
+y=$(yad --form \
+--title "$ms v.$v" --center \
+--window-icon=/usr/share/xcowsay/pup_small.png \
+--image-on-top --image="/usr/share/xcowsay/pup_small.png" \
+--Xtext-align=fill \
+--text "<b><big>$ms</big></b>
+$ms1
+$ms2" \
+--Xheight=200 --Xwidth=400 \
+--field="Раздел:":CB "$dev" \
+--field="Каталог:" "`hostname`" \
+--field="Справка"!gtk-help!"Подробности установки":FBTN 'defaultbrowser "'$wwws'"' \
+--field="Установщик для опытных"!!"В том числе с возможностью FULL":FBTN 'install-pra' \
+)
+[ "$?" = "0" ] || exit 1
+to_dev="`echo "$y" | awk -F"|" '{print $1}' |awk '{print $1}`"
+to_dir="`echo "$y" | awk -F"|" '{print $2}'`"
+#echo $? $to_dev $to_dir;exit
+
 [ "`grep $to_dev /proc/mounts`" ] || mount /dev$to_dev /mnt$to_dev
 #Имя каталога
-while true; do
-	to_dir=$(yad --text="Введите имя каталога для установки" --entry --entry-text="`hostname`") || exit
+#	to_dir=$(yad --text="Введите имя каталога для установки" --entry --entry-text="`hostname`") || exit
 	[ -d /mnt$to_dev/$to_dir ] || wt -o "mkdir /mnt/$to_dev/$to_dir" || exit 1
 	[ "`ls /mnt$to_dev/$to_dir`" ] && ntf -a "Каталог $to_dir не пустой" "измените имя" || break
 done
