@@ -107,3 +107,125 @@ else
         OK
     fi
 fi
+
+root@ivanov:/media/cr/pra/190101/install-lf# 
+./install-pra
+Failed to connect to Mir: Failed to connect to server socket: Нет такого файла или каталога
+Unable to init server: Не удалось подключиться к: В соединении отказано
+
+(yad:25816): Gtk-WARNING **: cannot open display: 
+
+root@ivanov:/media/cr/pra/190101/install-lf# man yad
+
+root@ivanov:/media/cr/pra/190101/install-lf# cat install-lf2 
+#!/bin/ash
+#Задаём раздел
+to_dev=$(yad --list \
+--height=200 --width=400 \
+--column=Раздел \
+--column=Размер \
+--column=ФС $(fdisk -l|grep ^/|grep -v swap|tr -d '*'| cut -b5- | awk '{print $1" "$5" "$7}')  | cut -f1 -d'|') 
+echo $?
+[ "$to_dev" ] || exit 1
+[ "`grep $to_dev /proc/mounts`" ] || mount /dev$to_dev /mnt$to_dev
+#Имя каталога
+while true; do
+	to_dir=$(yad --text="Введите имя каталога для установки" --entry --entry-text="`hostname`") || exit
+	[ -d /mnt$to_dev/$to_dir ] || wt -o "mkdir /mnt/$to_dev/$to_dir" || exit 1
+	[ "`ls /mnt$to_dev/$to_dir`" ] && ntf -a "Каталог $to_dir не пустой" "измените имя" || break
+done
+#Создаём подкаталоги
+mkdir -p /mnt/$to_dev/$to_dir/base /mnt/$to_dev/$to_dir/modules /mnt/$to_dev/$to_dir/optional /mnt/$to_dev/$to_dir/rootcopy
+#Копируем подключенные модули
+#losetup -a | awk '{print $3}' | while read m
+for m in $(losetup | awk '/^\/dev/  && $6 ~ /.pfs$/ {print $6}'); do
+    echo "Копируется $(basename $m)"
+#	cp $m /mnt/$to_dev/$to_dir/$(basename $(dirname $m))/
+	[ "`basename "$m" |egrep '^[0-9]'`" ] && dd=base || dd=modules
+	    wt -o "cp "$m" /mnt/$to_dev/$to_dir/$dd/"
+  done 
+#Копируем ядро и рамдиск
+[ "`uname -m`" = "x86_64" ] && a="_64"
+k="vmlinuz-$(uname -r)$a"
+value() { egrep -o "(^| )$1=[^ ]+" /proc/cmdline | cut -d= -f2; } #sfs
+df="/mnt/home/`value dir`"
+wt "cp "$df/$k" /mnt$to_dev/$to_dir/"
+wt "cp $df/initrd.xz /mnt$to_dev/$to_dir/"
+
+dir="/mnt/$to_dev/$to_dir"
+PRA="$to_dir"
+dir="`realpath "$dir"`"
+r="`df "$dir" |awk '/^\// {print $1}'`"
+rm="`df "$dir" |awk '/^\// {print $6}'`"
+
+m1="\
+#default 6
+timeout 5
+color 11 12 13 14
+graphicsmode -1 640:800
+font /rus_bold.lz
+
+"
+s="`date "+%y%m%d%H%M%S"`"
+# create sgnfile
+touch "$dir/$s"
+echo "Уникальная метка для поиска при загрузке. Не удаляйте" > "$dir/$s"
+#
+    ipr=porteus   ; ipr2="sgnfile=%s%" ; www="http://wiki.puppyrus.org/soft/porteus-initrd"
+
+m2="\
+title $PRA FRUGAL $ipr.\n Без загрузки в RAM (copy2ram)  и сохранения (changes=`basename $dir`). \n load=module[1];module[n]   - .pfs загружаются выше базы из /optional\n noload=module[1];module[n] - пропуск загрузки перечисленных модулей (regex)\n debug - вывод подробностей загрузки (пошаговый режим)
+    set d=`basename $dir`
+    set s=$s
+    find --set-root --ignore-floppies --ignore-cd /%d%/%s%
+    kernel /$to_dir/$k dir=%d% $ipr2 quiet
+    initrd /$to_dir/initrd.xz
+"
+
+OK(){
+[ "$m" ] && ml="
+\
+gtk-edit
+Редактировать $m
+2"
+[ "$ml2" ] && ml="$ml
+\
+gtk-edit
+Меню загрузки $PRA $ff $ipr $ml2
+3"
+
+y="`ntf -3 "\
+gtk-help
+Смотреть параметры загрузки дистрибутива
+1$ml" "$PRA $ff $ipr установлен в :$dir" "Меню grub4dos: $m\n"`"
+case $y in
+    1) 
+	defaultbrowser "$www" &
+	OK ;;
+    2)
+	defaulttexteditor "$m" &
+	OK ;;
+    3)
+	defaulttexteditor "$ml2" &
+	OK ;;
+esac
+exit
+}
+#m="$(find `dirname "$dir"` -maxdepth 1 -type f \( -name "menu.lst" \) |head -1)"
+sd="$(basename `df "$dir" |awk '/\/dev/ {print $1}'` |sed 's/[0-9]//')"
+m="$(find `mount |awk '/^\/dev\/'$sd'/ {print $3}'` -maxdepth 1 -type f \( -name "menu.lst" \) |head -1)"
+
+echo "m="$m" dir=$dir" m1=$m1 m2=$m2
+if [ ! "$m" ] ;then
+    ml2="`df "$dir" |awk '/\/dev/ {print $6}'`/menu.lst"
+    echo "$m1$m2" >> "$ml2" 
+    OK
+else 
+    if ntf -q "Обнаружен $m (меню grub4dos)" "Добавить новые пункты меню в конец меню?" ;then
+	echo "$m2" >> "$m" && OK
+    else 
+        ml2="$dir/menu-pra.lst" 
+        echo "$m1$m2" >> "$ml2"
+        OK
+    fi
+fi
