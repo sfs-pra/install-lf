@@ -15,12 +15,15 @@ while true; do
 	[ `ls /mnt$to_dev/$to_dir` ] && ntf -a "Каталог $to_dir не пустой" "измените имя" || break
 done
 #Создаём подкаталоги
-mkdir -p /mnt/$to_dev/$to_dir/base /mnt/$to_dev/$to_dir/modules /mnt/$to_dev/$to_dir/optional
+mkdir -p /mnt/$to_dev/$to_dir/base /mnt/$to_dev/$to_dir/modules /mnt/$to_dev/$to_dir/optional /mnt/$to_dev/$to_dir/rootcopy
 #Копируем подключенные модули
 #losetup -a | awk '{print $3}' | while read m
-losetup | awk '/^\/dev/  && $6 ~ /.pfs$/ {print $6}' | while read m
-  do echo "Копируется $(basename $m)"
+for m in $(losetup | awk '/^\/dev/  && $6 ~ /.pfs$/ {print $6}'); do
+    echo "Копируется $(basename $m)"
 #	cp $m /mnt/$to_dev/$to_dir/$(basename $(dirname $m))/
 	[ "`basename "$m" |egrep '^[0-9]'`" ] && dd=base || dd=modules
-	    cp "$m" /mnt/$to_dev/$to_dir/$dd/
+	    wt -o "cp "$m" /mnt/$to_dev/$to_dir/$dd/"
   done 
+#Копируем ядро и рамдиск
+wt "cp $(dirname $(dirname $m))/vmlinuz* /mnt/$to_part/$to_dir/"
+wt "cp $(dirname $(dirname $m))/initrd.xz /mnt$to_part/$to_dir/"
