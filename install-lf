@@ -1,4 +1,5 @@
 #!/bin/ash
+
 #Задаём раздел
 to_dev=$(yad --list \
 --height=200 --width=400 \
