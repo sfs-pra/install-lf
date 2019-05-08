@@ -1,7 +1,8 @@
 #!/bin/ash
 v=190507
 #Задаём раздел
-dev="$(fdisk -l|grep ^/|grep -v swap|tr -d '*'| cut -b5- | awk '{print $1" "$5" "$7}' | tr "\n" "!" |sed 's/!$//')"
+#dev="$(fdisk -l|grep ^/|grep -v swap|tr -d '*'| cut -b5- | awk '{print $1" "$5" "$7}' | tr "\n" "!" |sed 's/!$//')"
+dev="$(fdisk -l|egrep '^/'|egrep -v 'swap|LBA' |tr -d '*'| cut -b5- | awk '{print $1" "$5" "$7}' | tr "\n" "!" |sed 's/!$//')"
 ms="Установка Linux FRUGAL"
 ms1="Дистрибутив должен быть загружен FRUGAL с тем комплектом модулей, \
 который Вы хотите установить"
@@ -23,7 +24,7 @@ $ms2" \
 --field="Установщик для опытных"!!"В том числе с возможностью FULL":FBTN 'install-pra' \
 )
 [ "$?" = "0" ] || exit 1
-to_dev="`echo "$y" | awk -F"|" '{print $1}' |awk '{print $1}`"
+to_dev="`echo "$y" | awk -F"|" '{print $1}' |awk '{print $1}'`"
 to_dir="`echo "$y" | awk -F"|" '{print $2}'`"
 #echo $? $to_dev $to_dir;exit
 
@@ -37,12 +38,14 @@ done
 mkdir -p /mnt/$to_dev/$to_dir/base /mnt/$to_dev/$to_dir/modules /mnt/$to_dev/$to_dir/optional /mnt/$to_dev/$to_dir/rootcopy
 #Копируем подключенные модули
 #losetup -a | awk '{print $3}' | while read m
+wt -start "Копируются модули"
 for m in $(losetup | awk '/^\/dev/  && $6 ~ /.pfs$/ {print $6}'); do
     echo "Копируется $(basename $m)"
 #	cp $m /mnt/$to_dev/$to_dir/$(basename $(dirname $m))/
 	[ "`basename "$m" |egrep '^[0-9]'`" ] && dd=base || dd=modules
-	    wt -o "cp "$m" /mnt/$to_dev/$to_dir/$dd/"
-  done 
+	    cp "$m" "/mnt/$to_dev/$to_dir/$dd/"
+done 
+wt -kill
 #Копируем ядро и рамдиск
 [ "`uname -m`" = "x86_64" ] && a="_64"
 k="vmlinuz-$(uname -r)$a"
