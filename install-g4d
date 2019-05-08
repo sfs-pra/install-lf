@@ -5,7 +5,7 @@ PART(){
 d=/dev/sda
 dpm="$(ntf -l "`blkid |egrep -v "^/dev/sr|^/dev/loop"`" "На какой раздел скопировать grldr ?" "Файл загрузчика должен находиться на несъемном носителе" |awk -F: '{print $1}' |sed 's/dev/mnt/')"
 [ "$dpm" ] ||PART
-echo $dpm
+echo $dpm 
 }
 
 CP(){
@@ -24,10 +24,13 @@ else  ntf -a "Установка $dpm/$1 не произведена" && exit
 fi
 }
 #dp=/dev/sde1 ;CP grldr ;exit
-
+value() { egrep -o "(^| )$1=[^ ]+" /proc/cmdline | cut -d= -f2; } #sfs
+Installpra(){
+[ "`value root`" ] && install-pra || install-lf
+}
 CP1(){
 #	echo dpm="$dpm"
-     CP menu.lst ; CP grldr ; CP rus_bold.lz ; install-pra "$dpm" ; exit
+     CP menu.lst ; CP grldr ; CP rus_bold.lz ; Installpra "$dpm" ; exit
 }
 ERR() { [ ! "$d" ] && ntf -e "Ничего не выбрано" && exit ; }
 
@@ -113,7 +116,7 @@ case $d in
     "$m5") defaultbrowser "http://wiki.puppyrus.org/puppyrus/grub#uefi" & ;;
     "$m0") 
 	echo dpm="$dpm"
-	install-pra #"$dpm"
+	Installpra #"$dpm"
 XXX(){
     h=Справка
     [ "`uname -m`" = "x86_64" ] && f="|Full"
