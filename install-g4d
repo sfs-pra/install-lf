@@ -1,112 +1,124 @@
 #!/bin/ash
 #190508 sfs
+# правки k0l0p0k 190510
+# value - getcmd
+# CP1 - copyAll
+#
 #t="Мастер установки загрузчика grub4dos" 
 PART(){
+#  запрос раздела GUI
 d=/dev/sda
-dpm="$(ntf -l "`blkid |egrep -v "^/dev/sr|^/dev/loop"`" "На какой раздел скопировать grldr ?" "Файл загрузчика должен находиться на несъемном носителе" |awk -F: '{print $1}' |sed 's/dev/mnt/')"
-[ "$dpm" ] ||PART
-echo $dpm 
+#dpm
+dpart="$(ntf -l "`blkid |egrep -v "^/dev/sr|^/dev/loop"`" "На какой раздел скопировать grldr ?" "Файл загрузчика должен находиться на несъемном носителе" |awk -F: '{print $1}' |sed 's/dev/mnt/')"
+[ "$dpart" ] ||PART
+echo $dpart 
 }
 
 CP(){
-#PART
-dpm="`echo "$dpm" |sed 's/dev/mnt/'`"
-#echo "$d-$dp-$dpm" ;exit
-mount-all `basename $dpm`
+#копирование GUI 
+dpart="`echo "$dpart" |sed 's/dev/mnt/'`"
+#echo "$d-$dp-$dpart" ;exit
+mount-all `basename $dpart`
 
-if [ -f "$dpm/$1" ] ;then
-    ntf -q "$dpm/$1 существует" "Заменить?" && mv "$dpm/$1" "$dpm/$1.`date "+%y%m%d%H%M%S"`" || continue
+if [ -f "$dpart/$1" ] ;then
+    ntf -q "$dpart/$1 существует" "Заменить?" && mv "$dpart/$1" "$dpart/$1.`date "+%y%m%d%H%M%S"`" || continue #return ?
 fi
-cp /usr/lib/grub4dos/"$1" "$dpm"
-if [ -f "$dpm/$1" ] ;then
-    ntf -i "Установка $dpm/$1 завершена успешно" &
-else  ntf -a "Установка $dpm/$1 не произведена" && exit
+cp /usr/lib/grub4dos/"$1" "$dpart"
+if [ -f "$dpart/$1" ] ;then
+    ntf -i "Установка $dpart/$1 завершена успешно" &
+else  ntf -a "Установка $dpart/$1 не произведена" && exit
 fi
 }
 #dp=/dev/sde1 ;CP grldr ;exit
-value() { egrep -o "(^| )$1=[^ ]+" /proc/cmdline | cut -d= -f2; } #sfs
+#value
+getcmd() { egrep -o "(^| )$1=[^ ]+" /proc/cmdline | cut -d= -f2; } #sfs запрос параметров, переданных загрузчиком ядру
 Installpra(){
-[ "`value root`" ] && install-pra || install-lf
+[ "`getcmd root`" ] && install-pra || install-lf
 }
-CP1(){
-#	echo dpm="$dpm"
-     CP menu.lst ; CP grldr ; CP rus_bold.lz ; Installpra "$dpm" ; exit
+#CP1()
+copyAll(){
+#	echo dpart="$dpart"
+     CP menu.lst ; CP grldr ; CP rus_bold.lz
+     Installpra "$dpart" ; exit
 }
 ERR() { [ ! "$d" ] && ntf -e "Ничего не выбрано" && exit ; }
 
-INST32(){
+INST32OS(){
+# перезаписываем MBR копируем файлы g4d, ставим ось
  e="`/usr/lib/grub4dos/weesetup "$u" -b -s /usr/lib/grub4dos/weesetup.cfg --device="$d" 2>&1`"
      mount-all
  if [ "$?" = "0" ] ;then
      ntf -i "Установка MBR завершена успешно" &
-     CP1
+     copyAll
  else  
     if [ "$e" = "wee already installed, use -u option!" ] ;then
 	if ntf -q "MBR wee уже установлен\n" "Переустановить?" ;then
-	    u="-u" && INST
-	else CP1
+	    u="-u" && INSTg4d
+	else copyAll
 	fi
     else 
 	echo e="$e"
-	[ "$e" ] && ntf -a "Установка MBR не произведена\n" "$e" && exit || CP1
+	[ "$e" ] && ntf -a "Установка MBR не произведена\n" "$e" && exit || copyAll #??
     fi
  fi
 }
 
-INST(){
+DB(){
+# поиск загрузочного	
+dboot="`fdisk -l |awk '/^\/dev\/.*\*/ {print $1}'`"
+#dboot="`fdisk -l |awk '/^\/dev\/.*/ {print $1}'`"
+[ ! "$dboot" ] && ntf -a "Ни на oдном из разделов подключенных носителей не обнаружено установленного флага 'boot'" "Для установки флага используте gparted или cfdisk" && exit 1
+for i in $dboot ;do
+    db2="$db2
+`blkid |egrep '^'$i''`"
+done
+}
+# INST()
+INSTg4d(){
 #for i in `ls -1 /dev/[hs]d[a-z]` ;do
 #for i in `ls -1 /dev/[hs][dr][a-z]` ;do
 m0="- <b>Руководство</b> по grub4dos"
 #d="$(ntf -l "$m0|`ls /dev/[hs]d[a-z]`" "Выберите устройство для установки grub4dos\n" "Перед установкой, про выбранное устройство будет выведена более полная информация")"
 #d="$(ntf -l "$m0|`probedisk |tr "|" " "`" "Выберите устройство для установки grub4dos\n" "Перед установкой, про выбранное устройство будет выведена более полная информация")"
-
 #d="$(ntf -l "$m0|`probedisk |tr "|" " " |grep -v "/dev/sr"`" "Выберите устройство для установки grub4dos\n" "Перед установкой, про выбранное устройство будет выведена более полная информация")"
-DB(){
-db="`fdisk -l |awk '/^\/dev\/.*\*/ {print $1}'`"
-#db="`fdisk -l |awk '/^\/dev\/.*/ {print $1}'`"
-[ ! "$db" ] && ntf -a "Ни на лдном из разделов подключенных носителей не обнаручено установленного флага 'boot'" "Для установки флага используте gparted или cfdisk" && exit 1
-for i in $db ;do
-    db2="$db2
-`blkid |egrep '^'$i''`"
-done
-}
 d="$(ntf -l "$m0|`blkid |egrep -v "^/dev/sr|^/dev/loop"`" "Выберите раздел для установки grub4dos\n" "Перед установкой, про выбранное устройство будет выведена более полная информация")"
 #d="$(ntf -l "$m0|`echo "$db2" |sed '/^$/d'`" "Выберите раздел для установки grub4dos\n" "Перед установкой, про выбранное устройство будет выведена более полная информация")"
-dpm="`echo $d| awk -F: '{print $1}'`"
+dpart="`echo $d| awk -F: '{print $1}'`"
 #     echo d="$d" ;exit
 #     dp="`echo "$d" |awk -F"/" '{print "/"$2"/"$3"1"}'`"
-#dpm="`echo "$dp" |sed 's/dev/mnt/'`"
-LANG=en_US.UTF-8 fdisk -l $dpm |egrep "^Disklabel type" |grep gpt && ntf -a "Grub4Dos не устанавливается на GPT." "Используйте grub2" && exit 1
+#dpart="`echo "$dp" |sed 's/dev/mnt/'`"
+LANG=en_US.UTF-8 fdisk -l $dpart |egrep "^Disklabel type" |grep gpt && ntf -a "Grub4Dos не устанавливается на GPT." "Используйте grub2" && exit 1
 
-if [ "$dpm" = "$m0" ] ;then
+if [ "$dpart" = "$m0" ] ;then
     defaultbrowser "http://greenflash.su/Grub4Dos/Grub4dos.htm" & 
-    INST
+    INSTg4d # 
 fi
-d="`echo $dpm |tr -d [0-9]`"
+d="`echo $dpart |tr -d [0-9]`"
 ERR
-
 [ "`fdisk -l "$d" |egrep ' GPT$'`" ] && ntf -a "Установка на GPT не поддерживается" "`fdisk -l "$d"`" && exit
-
 ntf -q "Вы уверены, что хотите установить grub4dos на\n$d ?
-
 <b>Внимание!</b> Необдуманные действия могут привести к тому, что все системы c $d перестанут загружаться" "</i><small>`fdisk -l $d |egrep -v 'Units:| size '`</small><i>" || return
-
 #cp -f /usr/lib/grub4dos/grldr.mbr /tmp/wee.mbr &&
 #dd if=$d bs=1 skip=439 count=72 2>/dev/null | dd of=/tmp/wee.mbr bs=1 seek=439 conv=notrunc &&
 #dd if=/tmp/wee.mbr of=$d &&
-sudo -u `sfsusr` wt "sudo /usr/lib/grub4dos/bootlace.com $d"
-
-CP1 &&
+sudo -u `sfsusr` wt "sudo /usr/lib/grub4dos/bootlace.com $d" # ??
+# ?? помимо г4д устанавливается ВСЯ система ??
+#copyAll &&
+CP menu.lst ; CP grldr ; CP rus_bold.lz &&
 ntf -w "grub4dos" "успешно установлен на $d" && exit || ntf -w "grub4dos" "ОШИБКА установки!!!"
 }
 
+########   MAIN  #####################################################################
+
+m0="<big>Установка системы ( <b>grub4dos</b>  уже установлен )</big>"
+m4="<big>Установка <b>grub4dos</b> в MBR</big>" # (на устройстве нет установленных систем)"
 m1="<b>Windows</b> уже установлен"
 #m2="<b>Windows XP</b> уже установлен"
 m3="<b>grub2</b>  уже установлен (или установка)"
-m0="<b>grub4dos</b>  уже установлен"
-m4="<big>Установка <b>grub4dos</b> в MBR</big>" # (на устройстве нет установленных систем)"
 m5="Используется <b>UEFI</b>"
-d="$(ntf -l "$m0|$m1|$m3|$m5|$m4" "Установкв загрузчика в MBR" "Если носитель не размечен - сделайте это с помощью gparted
+
+d="$(ntf -l "$m4|$m0|$m1|$m3|$m5" "Установка системы и загрузчика" "Если носитель не размечен - сделайте это с помощью gparted
+Если загрузчик <b>установлен - пропустите</b> первый шаг
 Оптимально устанавливать на Linux раздел (например ext4)")"
 #echo "d=$d"
 case $d in
@@ -115,79 +127,23 @@ case $d in
     "$m3") defaultbrowser "http://wiki.puppyrus.org/puppyrus/grub#установка_grub2" & ;;
     "$m5") defaultbrowser "http://wiki.puppyrus.org/puppyrus/grub#uefi" & ;;
     "$m0") 
-	echo dpm="$dpm"
-	Installpra #"$dpm"
+	echo dpart="$dpart"
+	Installpra #"$dpart"
 XXX(){
     h=Справка
     [ "`uname -m`" = "x86_64" ] && f="|Full"
     y="`ntf -l "$h|Frugal$f" "Установка PRA" "Выберите вариант установки"`"
  case $y in
     $h)		defaultbrowser "http://wiki.puppyrus.org/setups/full-vs-frugal" ; ($0 &) ;exit ;;
-    Frugal)	install-pra  "$dpm" ;;
+    Frugal)	install-pra  "$dpart" ;;
     Full)	pra-full-inst ;;
     *)		exit ;;
  esac
 }
 	exit
 	;;
-    "$m4") INST ;;
+    "$m4") INSTg4d ;;
     *) ERR ;;
 esac
 #$0
-
-
-
 exit
-#for i in `ls -1 /dev/[hs]d[a-z]` ;do
-for i in `ls -1 /dev/[hs]d[a-z]` ;do
-    j="$j$i
-`blkid $i*`
-"
-done 
-echo "$j"
-#ntf -3
-exit
-ntf -3 "\
-gtk-harddisk
-$i
-
-\
-gtk-no
-no
-2" ["Заголовок"] ["текст"]
-
-exit
-#df -TH|sed -e '/Filesystem/d' -e '/aufs/d'|sed -e 's/fuseblk/NTFS/g' -e 's/vfat/FAT/g'|awk 'BEGIN{FS=OFS=" "}{$5=$6="";gsub(FS"+",FS)}1' \
-#    |sed  's/ /|/g' |awk -F"|" '$2 !~ /squash|tmpfs|rootfs|fuse./ {print $0}'
-#blkid |awk -F "TYPE=" '$2 !~ /squash|tmpfs|rootfs|fuse./ {print $1$2}'
-ls /dev/[hs]d[a-z]
-blkid |awk -F "TYPE=" '$2 ~ /ext|ntfs|fat/ {print $1}' |sed
-#    |sed  's/ /|/g' |awk -F"|" '$2 !~ /squash/ && $2 !~ /tmpfs/ {print $0}'
-
- #> $WRK/dump
-
-#awk '/[hs]d/ {print $4}' /proc/partitions | grep -v [0-9]
-exit
-#DdShurick GPL 230114 for PRA
-
-DEVS=$(awk '/[hs]d/ {print $4}' /proc/partitions | grep -v [0-9])
-#if [ "$(echo $DEVS | wc -w)" -gt 1 ]; then
-for DEV in $DEVS
-do
-MEDIA="HD"
-[ "$(cat /sys/block/$DEV/events)" = "media_change" ] && MEDIA="USB"
-INFO=$(cat /sys/block/$DEV/device/{vendor,model} | tr -d ' ' | tr '\n' ' ')
-MENU="${MENU}
-$DEV $MEDIA $INFO"
-done
-yad --title "Выберите устройство" --width 300 --height 200 --center --list --print-column=1 --hide-column=1 --column "" --column "Тип" --column "Инфо" --column "" $MENU
-#fi
-echo "...Вы уверены?..." | yad --back=red --fontname="24" --wrap --justify=center --margins=10 --tail --width 300 --height 120 --center --undecorated --text-info --button=Да:0 --button=Нет:1
-[ $? -gt 0 ] && exit
-#Прописываем загрузчик
-MYLOG=/tmp/$(basename "$0").log
-sudo cp -f /usr/lib/grub4dos/grldr.mbr /tmp/wee.mbr >>$MYLOG 2>&1
-sudo dd if=/dev/$DEV bs=1 skip=440 count=72 2>/dev/null | dd of=/tmp/wee.mbr bs=1 seek=440 conv=notrunc >>$MYLOG 2>&1
-sudo dd if=/dev/$DEV of=${DEV}.backup.mbr bs=512 count=1 >>$MYLOG 2>&1 #backup
-sudo dd if=/tmp/wee.mbr of=/dev/$DEV >>$MYLOG 2>&1
-echo "...Готово..." | yad --back=green --fontname="24" --wrap --justify=center --margins=10 --tail --width 300 --height 120 --center --undecorated --text-info --button=Да:0
